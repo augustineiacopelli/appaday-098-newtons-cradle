@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Newton's Cradle | AppADay 098</title>
+<meta name="description" content="A draggable Newton's cradle. Pull a ball back, let it go, and watch momentum travel through the line. Adjustable ball count, gravity, and energy loss.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0e1216;
+    --desk:#1a2229;
+    --desk-2:#101519;
+    --walnut:#6d4526;
+    --walnut-hi:#9a6a3f;
+    --walnut-lo:#33200f;
+    --brass:#e3b25c;
+    --brass-hi:#ffe9b0;
+    --brass-lo:#7a5417;
+    --ivory:#f2ece0;
+    --ivory-dim:#9aa3a8;
+    --oxide:#b8542f;
+    --line:rgba(226,215,193,.14);
+    --panel:rgba(255,255,255,.035);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100dvh;
+    display:flex;
+    flex-direction:column;
+    background:
+      radial-gradient(120% 80% at 50% 0%, #222c34 0%, var(--desk) 38%, var(--desk-2) 100%);
+    color:var(--ivory);
+    font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- header ---------- */
+  header{
+    display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap;
+    padding:.85rem 1rem .8rem;
+    border-bottom:1px solid var(--line);
+    background:rgba(8,11,14,.5);
+  }
+  .num{
+    font-size:.72rem;font-weight:600;letter-spacing:.16em;
+    color:var(--brass);
+    border:1px solid rgba(227,178,92,.4);
+    border-radius:2px;
+    padding:.16rem .42rem;
+  }
+  .wordmark{
+    font-family:'Fraunces',Georgia,serif;
+    font-weight:700;font-size:1.12rem;letter-spacing:.005em;
+    margin:0;
+  }
+  .tag{font-size:.7rem;color:var(--ivory-dim);letter-spacing:.03em;}
+  header a.home{
+    margin-left:auto;
+    font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ivory-dim);text-decoration:none;
+    border-bottom:1px solid transparent;
+    padding-bottom:1px;
+  }
+  header a.home:hover,header a.home:focus-visible{color:var(--brass);border-bottom-color:var(--brass);}
+
+  /* ---------- stage ---------- */
+  main{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;}
+  .stage{
+    flex:1 1 0;
+    position:relative;
+    min-height:190px;
+    max-height:340px;
+  }
+  canvas{
+    display:block;width:100%;height:100%;
+    touch-action:none;
+    cursor:grab;
+    outline:none;
+  }
+  canvas.dragging{cursor:grabbing;}
+  canvas:focus-visible{box-shadow:inset 0 0 0 2px var(--brass);}
+  .hint{
+    position:absolute;left:50%;top:.7rem;transform:translateX(-50%);
+    font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;
+    color:rgba(242,236,224,.42);
+    pointer-events:none;
+    transition:opacity .5s ease;
+    text-align:center;
+    width:min(92%,34rem);
+  }
+  .hint.gone{opacity:0;}
+
+  /* ---------- readouts ---------- */
+  .gauges{
+    display:grid;grid-template-columns:repeat(3,1fr);
+    border-top:1px solid var(--line);
+    background:rgba(8,11,14,.42);
+  }
+  .gauge{padding:.5rem .75rem .55rem;text-align:center;}
+  .gauge + .gauge{border-left:1px solid var(--line);}
+  .gauge .k{
+    display:block;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ivory-dim);margin-bottom:.14rem;
+  }
+  .gauge .v{font-size:1.02rem;font-weight:600;color:var(--brass);font-variant-numeric:tabular-nums;}
+
+  /* ---------- controls ---------- */
+  .panel{
+    border-top:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(0,0,0,.2));
+    padding:.8rem .9rem .9rem;
+    display:grid;gap:.7rem .8rem;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .panel .span{grid-column:1 / -1;}
+  .panel{flex:1 1 auto;align-content:space-evenly;}
+  .ctl label,.ctl .lbl{
+    display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;
+    font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ivory-dim);margin-bottom:.35rem;
+  }
+  .ctl .val{color:var(--brass);font-weight:600;letter-spacing:.04em;font-variant-numeric:tabular-nums;}
+
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;
+    width:100%;height:22px;background:transparent;margin:0;
+  }
+  input[type=range]::-webkit-slider-runnable-track{
+    height:3px;background:rgba(242,236,224,.18);border-radius:2px;
+  }
+  input[type=range]::-moz-range-track{
+    height:3px;background:rgba(242,236,224,.18);border-radius:2px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;
+    width:17px;height:17px;border-radius:50%;margin-top:-7px;
+    background:radial-gradient(circle at 35% 30%,var(--brass-hi),var(--brass) 55%,var(--brass-lo));
+    border:1px solid rgba(0,0,0,.5);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:17px;height:17px;border-radius:50%;border:1px solid rgba(0,0,0,.5);
+    background:radial-gradient(circle at 35% 30%,var(--brass-hi),var(--brass) 55%,var(--brass-lo));cursor:pointer;
+  }
+  input[type=range]:focus-visible{outline:2px solid var(--brass);outline-offset:4px;border-radius:3px;}
+
+  .stepper{display:flex;align-items:stretch;gap:.4rem;}
+  .stepper .count{
+    flex:1 1 auto;display:flex;align-items:center;justify-content:center;
+    background:var(--panel);border:1px solid var(--line);border-radius:3px;
+    font-size:1rem;font-weight:600;color:var(--ivory);font-variant-numeric:tabular-nums;
+  }
+  button{
+    font-family:inherit;color:var(--ivory);
+    background:var(--panel);
+    border:1px solid var(--line);border-radius:3px;
+    padding:.5rem .7rem;
+    font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+    cursor:pointer;
+    transition:background .16s ease,border-color .16s ease,color .16s ease;
+    min-height:40px;
+  }
+  button:hover{background:rgba(227,178,92,.13);border-color:rgba(227,178,92,.5);color:var(--brass-hi);}
+  button:focus-visible{outline:2px solid var(--brass);outline-offset:2px;}
+  button[aria-pressed=true]{
+    background:rgba(227,178,92,.18);border-color:rgba(227,178,92,.62);color:var(--brass-hi);
+  }
+  .stepper button{width:44px;padding:.5rem 0;font-size:1rem;letter-spacing:0;}
+  .row{display:flex;gap:.4rem;flex-wrap:wrap;}
+  .row button{flex:1 1 0;min-width:0;padding:.5rem .3rem;}
+  .row.finish button.reset{color:var(--oxide);border-color:rgba(184,84,47,.42);}
+  .row.finish button.reset:hover{background:rgba(184,84,47,.16);border-color:var(--oxide);color:#e8815c;}
+
+  /* ---------- footer ---------- */
+  footer{
+    border-top:1px solid var(--line);
+    padding:.8rem 1rem 1.4rem;
+    display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;
+    font-size:.66rem;color:var(--ivory-dim);letter-spacing:.05em;
+    background:rgba(8,11,14,.5);
+  }
+  footer a{color:var(--brass);text-decoration:none;border-bottom:1px solid rgba(227,178,92,.35);}
+  footer a:hover,footer a:focus-visible{color:var(--brass-hi);border-bottom-color:var(--brass-hi);}
+  footer .sig{margin-left:auto;font-family:'Fraunces',Georgia,serif;font-style:italic;letter-spacing:0;}
+
+  @media (max-width:639px){
+    .row button{font-size:.61rem;letter-spacing:.05em;white-space:nowrap;}
+    .tag{display:none;}
+  }
+  @media (min-width:640px){
+    .panel{gap:.9rem 1.4rem;padding:1rem 1.25rem 1.2rem;}
+    .row button{padding:.5rem .7rem;}
+    .wordmark{font-size:1.3rem;}
+    .gauge{padding:.6rem .75rem .65rem;}
+  }
+  @media (min-width:880px){
+    .stage{max-height:none;}
+    .panel{flex:0 0 auto;align-content:start;}
+  }
+  @media (min-width:1000px){
+    .panel{grid-template-columns:repeat(4,minmax(0,1fr));}
+    .panel .span{grid-column:auto;}
+    .panel .wide{grid-column:span 2;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition-duration:.01ms !important;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="num">098</span>
+  <h1 class="wordmark">Newton's Cradle</h1>
+  <span class="tag">momentum, passed along</span>
+  <a class="home" href="https://augustineiacopelli.github.io/appaday/">AppADay</a>
+</header>
+
+<main>
+  <div class="stage">
+    <canvas id="cradle" tabindex="0" role="application"
+      aria-label="Newton's cradle. Drag a ball to lift it, release to drop. Arrow keys lift an end ball, space resets."></canvas>
+    <p class="hint" id="hint">Drag a ball aside and let go</p>
+  </div>
+
+  <div class="gauges">
+    <div class="gauge"><span class="k">Transfers</span><span class="v" id="gCol">0</span></div>
+    <div class="gauge"><span class="k">Energy kept</span><span class="v" id="gEne">100%</span></div>
+    <div class="gauge"><span class="k">Widest swing</span><span class="v" id="gAng">0 deg</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="ctl">
+      <div class="lbl"><span>Balls</span><span class="val" id="vBalls">5</span></div>
+      <div class="stepper">
+        <button type="button" id="less" aria-label="Remove a ball">&minus;</button>
+        <div class="count" id="countOut" aria-live="polite">5</div>
+        <button type="button" id="more" aria-label="Add a ball">+</button>
+      </div>
+    </div>
+
+    <div class="ctl">
+      <label for="grav"><span>Gravity</span><span class="val" id="vGrav">1.00 g</span></label>
+      <input type="range" id="grav" min="30" max="220" value="100" step="1">
+    </div>
+
+    <div class="ctl span">
+      <label for="loss"><span>Energy loss</span><span class="val" id="vLoss">Low</span></label>
+      <input type="range" id="loss" min="0" max="100" value="10" step="1">
+    </div>
+
+    <div class="ctl span wide">
+      <div class="lbl"><span>Finish</span><span class="val" id="vMetal">Brass</span></div>
+      <div class="row">
+        <button type="button" class="metal" data-metal="brass" aria-pressed="true">Brass</button>
+        <button type="button" class="metal" data-metal="chrome" aria-pressed="false">Chrome</button>
+        <button type="button" class="metal" data-metal="copper" aria-pressed="false">Copper</button>
+      </div>
+    </div>
+
+    <div class="ctl span wide">
+      <div class="lbl"><span>Release</span></div>
+      <div class="row">
+        <button type="button" id="lift1">Lift 1</button>
+        <button type="button" id="lift2">Lift 2</button>
+        <button type="button" id="lift3">Lift 3</button>
+        <button type="button" id="split">Both ends</button>
+      </div>
+    </div>
+
+    <div class="ctl span wide">
+      <div class="lbl"><span>Sound</span><span class="val" id="vSound">On</span></div>
+      <div class="row finish">
+        <button type="button" id="sound" aria-pressed="true">Mute</button>
+        <button type="button" id="reset" class="reset">Bring to rest</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span>App 098 of the AppADay project</span>
+  <a href="https://augustineiacopelli.github.io/appaday/">Back to the portfolio</a>
+  <span class="sig">Augustine Iacopelli</span>
+</footer>
+
+<script>
+(function(){
+  'use strict';
+
+  var LS_KEY = 'appaday-098-cradle';
+  var MIN_BALLS = 3, MAX_BALLS = 9;
+  var LEN = 1;            // pendulum length, physics units
+  var G0 = 9.81;
+  var MAX_LIFT = 0.95;    // radians, about 54 degrees
+
+  var METALS = {
+    brass:  { name:'Brass',  hi:'#ffeec2', mid:'#d9a441', lo:'#6b4a12', rim:'#ffd98a' },
+    chrome: { name:'Chrome', hi:'#ffffff', mid:'#b6c1cc', lo:'#38414c', rim:'#dfe8f0' },
+    copper: { name:'Copper', hi:'#ffd9bd', mid:'#c9703c', lo:'#57250d', rim:'#ffb589' }
+  };
+
+  var state = {
+    n: 5,
+    gravity: 1.0,
+    loss: 10,
+    metal: 'brass',
+    sound: true
+  };
+
+  var th = [], om = [], impact = [], touching = [];
+  var dragIndex = -1, dragPointer = null, dragLastTh = 0, dragLastT = 0, dragVel = 0;
+  var collisions = 0, peakE = 0, moved = false;
+
+  var canvas = document.getElementById('cradle');
+  var ctx = canvas.getContext('2d');
+  var stage = canvas.parentNode;
+  var hint = document.getElementById('hint');
+
+  var els = {
+    balls: document.getElementById('vBalls'),
+    count: document.getElementById('countOut'),
+    grav: document.getElementById('grav'),
+    vGrav: document.getElementById('vGrav'),
+    loss: document.getElementById('loss'),
+    vLoss: document.getElementById('vLoss'),
+    vMetal: document.getElementById('vMetal'),
+    vSound: document.getElementById('vSound'),
+    gCol: document.getElementById('gCol'),
+    gEne: document.getElementById('gEne'),
+    gAng: document.getElementById('gAng')
+  };
+
+  /* ---------- storage ---------- */
+  function save(){
+    try{
+      window.localStorage.setItem(LS_KEY, JSON.stringify({
+        n: state.n, gravity: state.gravity, loss: state.loss,
+        metal: state.metal, sound: state.sound
+      }));
+    }catch(e){ /* private mode or file:// origin */ }
+  }
+  function load(){
+    try{
+      var raw = window.localStorage.getItem(LS_KEY);
+      if(!raw) return;
+      var o = JSON.parse(raw);
+      if(!o || typeof o !== 'object') return;
+      if(typeof o.n === 'number' && o.n >= MIN_BALLS && o.n <= MAX_BALLS) state.n = Math.round(o.n);
+      if(typeof o.gravity === 'number' && o.gravity > 0.2 && o.gravity < 2.4) state.gravity = o.gravity;
+      if(typeof o.loss === 'number' && o.loss >= 0 && o.loss <= 100) state.loss = Math.round(o.loss);
+      if(typeof o.metal === 'string' && METALS[o.metal]) state.metal = o.metal;
+      if(typeof o.sound === 'boolean') state.sound = o.sound;
+    }catch(e){ /* ignore malformed or blocked storage */ }
+  }
+
+  /* ---------- sound ---------- */
+  var audio = null;
+  function ensureAudio(){
+    if(audio || !state.sound) return;
+    try{
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(AC) audio = new AC();
+    }catch(e){ audio = null; }
+  }
+  function click(strength){
+    if(!state.sound || !audio) return;
+    try{
+      if(audio.state === 'suspended') audio.resume();
+      var t = audio.currentTime;
+      var amp = Math.min(0.32, 0.045 + strength * 0.075);
+      var pair = [1180, 1790];
+      for(var k = 0; k < pair.length; k++){
+        var osc = audio.createOscillator();
+        var gain = audio.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(pair[k] * (0.97 + Math.random() * 0.06), t);
+        gain.gain.setValueAtTime(amp * (k === 0 ? 1 : 0.45), t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
+        osc.connect(gain);
+        gain.connect(audio.destination);
+        osc.start(t);
+        osc.stop(t + 0.1);
+      }
+    }catch(e){ /* audio unavailable */ }
+  }
+
+  /* ---------- physics ---------- */
+  function build(n){
+    state.n = n;
+    th = []; om = []; impact = []; touching = [];
+    for(var i = 0; i < n; i++){ th.push(0); om.push(0); impact.push(0); }
+    for(var j = 0; j < n - 1; j++) touching.push(true);
+    dragIndex = -1;
+    collisions = 0;
+    peakE = 0;
+  }
+
+  function restitution(){ return 1 - (state.loss / 100) * 0.18; }
+  function airDrag(){ return (state.loss / 100) * 0.30; }
+  function asinClamp(s){ return Math.asin(Math.max(-1, Math.min(1, s))); }
+
+  function integrate(dt){
+    var g = G0 * state.gravity;
+    var d = airDrag();
+    for(var i = 0; i < state.n; i++){
+      if(i === dragIndex) continue;
+      om[i] += (-(g / LEN) * Math.sin(th[i])) * dt;
+      om[i] -= om[i] * d * dt;
+      th[i] += om[i] * dt;
+      if(th[i] > 1.55){ th[i] = 1.55; om[i] = 0; }
+      if(th[i] < -1.55){ th[i] = -1.55; om[i] = 0; }
+    }
+  }
+
+  function solve(){
+    var e = restitution();
+    for(var pass = 0; pass < 10; pass++){
+      for(var i = 0; i < state.n - 1; i++){
+        var s1 = Math.sin(th[i]), s2 = Math.sin(th[i + 1]);
+        if(s1 - s2 <= 1e-9) continue;
+
+        if(i === dragIndex){
+          th[i + 1] = asinClamp(s1);
+        }else if(i + 1 === dragIndex){
+          th[i] = asinClamp(s2);
+        }else{
+          var mid = (s1 + s2) / 2;
+          th[i] = asinClamp(mid);
+          th[i + 1] = asinClamp(mid);
+        }
+
+        var v1 = om[i], v2 = om[i + 1];
+        var rel = v1 - v2;
+        if(rel <= 0) continue;
+        if(rel > impact[i]) impact[i] = rel;
+
+        if(i === dragIndex){
+          om[i + 1] = (1 + e) * v1 - e * v2;
+        }else if(i + 1 === dragIndex){
+          om[i] = (1 + e) * v2 - e * v1;
+        }else{
+          om[i] = ((1 - e) * v1 + (1 + e) * v2) / 2;
+          om[i + 1] = ((1 + e) * v1 + (1 - e) * v2) / 2;
+        }
+      }
+    }
+  }
+
+  function contacts(){
+    for(var i = 0; i < state.n - 1; i++){
+      var now = (Math.sin(th[i]) - Math.sin(th[i + 1])) > -2e-4;
+      if(now && !touching[i] && impact[i] > 0.16){
+        collisions++;
+        click(impact[i]);
+      }
+      touching[i] = now;
+      impact[i] = 0;
+    }
+  }
+
+  function energy(){
+    var g = G0 * state.gravity, e = 0;
+    for(var i = 0; i < state.n; i++){
+      e += 0.5 * LEN * LEN * om[i] * om[i] + g * LEN * (1 - Math.cos(th[i]));
+    }
+    return e;
+  }
+
+  function widest(){
+    var m = 0;
+    for(var i = 0; i < state.n; i++){
+      var a = Math.abs(th[i]);
+      if(a > m) m = a;
+    }
+    return m * 180 / Math.PI;
+  }
+
+  /* ---------- releases ---------- */
+  function stopAll(){
+    for(var i = 0; i < state.n; i++){ th[i] = 0; om[i] = 0; }
+    for(var j = 0; j < state.n - 1; j++){ touching[j] = true; impact[j] = 0; }
+    collisions = 0;
+    peakE = 0;
+  }
+  function lift(k){
+    stopAll();
+    var count = Math.min(k, state.n - 1);
+    for(var i = 0; i < count; i++){ th[i] = -MAX_LIFT; touching[i] = false; }
+    if(count > 0) touching[count - 1] = false;
+    peakE = energy();
+    hideHint();
+  }
+  function bothEnds(){
+    stopAll();
+    if(state.n < 3) return;
+    th[0] = -MAX_LIFT;
+    th[state.n - 1] = MAX_LIFT;
+    touching[0] = false;
+    touching[state.n - 2] = false;
+    peakE = energy();
+    hideHint();
+  }
+  function hideHint(){
+    if(moved) return;
+    moved = true;
+    hint.className = 'hint gone';
+  }
+
+  /* ---------- geometry ---------- */
+  var geo = { R:20, Lpx:120, pivotY:60, baseTop:300, cx:200, frameW:300, postW:12, barH:12, baseH:16 };
+
+  // A real cradle hangs on short strings: length runs about three ball
+  // diameters, so the arc stays close to the frame instead of flying wide.
+  function layout(w, h){
+    var pad = Math.max(9, Math.min(20, w * 0.035));
+    var n = state.n;
+    // Size the ball from the widest thing on screen: a fully lifted ball at
+    // the end of the row. Solving for that envelope keeps the string-to-ball
+    // ratio honest instead of letting a narrow phone squash the strings.
+    var LRATIO = 3.1;
+    var widthFit = (w / 2 - pad) / (n + Math.sin(MAX_LIFT) * LRATIO);
+    var heightFit = (h - 2 * pad - 14) / (LRATIO + 2.25);
+    var R = Math.max(6, Math.min(widthFit, heightFit, 62));
+
+    var postW = Math.max(7, R * 0.4);
+    var barH = Math.max(8, R * 0.4);
+    var baseH = Math.max(10, R * 0.55);
+    var clear = Math.max(6, R * 0.28);
+
+    var room = h - 2 * pad - barH - baseH - clear - R;
+    var Lpx = Math.max(R * 2.0, Math.min(room, R * LRATIO));
+
+    var totalH = barH + Lpx + R + clear + baseH;
+    var top = pad + Math.max(0, (h - 2 * pad - totalH) / 2);
+
+    // whatever width is left becomes side rail, up to a full ball and a half
+    var spare = (w - 2 * pad - 8 - (2 * n * R + 2 * postW)) / 2;
+    var inset = Math.max(R * 0.35, Math.min(spare, R * 1.55));
+    geo.R = R;
+    geo.Lpx = Lpx;
+    geo.pivotY = top + barH;
+    geo.baseTop = top + barH + Lpx + R + clear;
+    geo.postW = postW;
+    geo.barH = barH;
+    geo.baseH = baseH;
+    geo.cx = w / 2;
+    geo.frameW = n * 2 * R + 2 * inset + 2 * postW;
+    geo.pad = pad;
+  }
+
+  function pivotX(i){ return geo.cx + (i - (state.n - 1) / 2) * 2 * geo.R; }
+  function ballX(i){ return pivotX(i) + geo.Lpx * Math.sin(th[i]); }
+  function ballY(i){ return geo.pivotY + geo.Lpx * Math.cos(th[i]); }
+
+  /* ---------- drawing ---------- */
+  function rr(x, y, w, h, r){
+    var rad = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rad, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rad);
+    ctx.arcTo(x + w, y + h, x, y + h, rad);
+    ctx.arcTo(x, y + h, x, y, rad);
+    ctx.arcTo(x, y, x + w, y, rad);
+    ctx.closePath();
+  }
+
+  function woodFill(x, y, w, h, vertical){
+    var g = vertical
+      ? ctx.createLinearGradient(x, y, x + w, y)
+      : ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, '#33200f');
+    g.addColorStop(0.28, '#7a4f2b');
+    g.addColorStop(0.52, '#9a6a3f');
+    g.addColorStop(0.78, '#6d4526');
+    g.addColorStop(1, '#2b1a0c');
+    return g;
+  }
+
+  function drawBase(){
+    var left = geo.cx - geo.frameW / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.55)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 6;
+    rr(left - geo.R * 0.4, geo.baseTop, geo.frameW + geo.R * 0.8, geo.baseH, 4);
+    ctx.fillStyle = woodFill(left, geo.baseTop, 0, geo.baseH, false);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPlate(){
+    var plateW = Math.min(geo.frameW * 0.34, 172);
+    var plateH = Math.min(geo.baseH * 0.5, 14);
+    if(plateW < 84 || plateH < 9) return;
+    var px = geo.cx - plateW / 2;
+    var py = geo.baseTop + (geo.baseH - plateH) / 2;
+    rr(px, py, plateW, plateH, 2);
+    var pg = ctx.createLinearGradient(px, py, px, py + plateH);
+    pg.addColorStop(0, '#d4aa5c');
+    pg.addColorStop(0.5, '#96712a');
+    pg.addColorStop(1, '#c79c4d');
+    ctx.fillStyle = pg;
+    ctx.fill();
+    ctx.fillStyle = 'rgba(30,18,4,.86)';
+    ctx.font = '600 ' + Math.max(7, Math.round(plateH * 0.55)) + 'px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('APPADAY 098', geo.cx, py + plateH / 2 + 0.5);
+  }
+
+  function drawUprights(){
+    var left = geo.cx - geo.frameW / 2;
+    var right = geo.cx + geo.frameW / 2;
+    var barTop = geo.pivotY - geo.barH;
+    var posts = [left, right - geo.postW];
+    for(var p = 0; p < posts.length; p++){
+      rr(posts[p], barTop, geo.postW, geo.baseTop - barTop + 2, 3);
+      ctx.fillStyle = woodFill(posts[p], barTop, geo.postW, 0, true);
+      ctx.fill();
+    }
+    rr(left, barTop, geo.frameW, geo.barH, 3);
+    ctx.fillStyle = woodFill(left, barTop, 0, geo.barH, false);
+    ctx.fill();
+  }
+
+  function drawShadows(){
+    var y = geo.baseTop + geo.baseH * 0.34;
+    var half = geo.frameW / 2 + geo.R * 0.4;
+    for(var i = 0; i < state.n; i++){
+      var bx = ballX(i);
+      var off = Math.abs(bx - geo.cx);
+      if(off > half) continue;                       // ball has swung off the slab
+      var edge = Math.min(1, (half - off) / (geo.R * 1.2));
+      var high = 1 - Math.min(1, Math.abs(th[i]) / MAX_LIFT) * 0.6;
+      ctx.save();
+      ctx.translate(bx, y);
+      ctx.scale(1, 0.2);
+      ctx.beginPath();
+      ctx.arc(0, 0, geo.R * (0.7 + (1 - high) * 0.45), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.07 + high * 0.24) * edge + ')';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawStrings(){
+    ctx.lineWidth = Math.max(0.8, geo.R * 0.045);
+    ctx.strokeStyle = 'rgba(232,222,200,.42)';
+    for(var i = 0; i < state.n; i++){
+      var px = pivotX(i), bx = ballX(i), by = ballY(i);
+      var spread = geo.R * 0.72;
+      ctx.beginPath();
+      ctx.moveTo(px - spread, geo.pivotY);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px + spread, geo.pivotY);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    }
+  }
+
+  function drawBalls(){
+    var m = METALS[state.metal] || METALS.brass;
+    var R = geo.R;
+    for(var i = 0; i < state.n; i++){
+      var bx = ballX(i), by = ballY(i);
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,.5)';
+      ctx.shadowBlur = R * 0.5;
+      ctx.shadowOffsetY = R * 0.16;
+      ctx.beginPath();
+      ctx.arc(bx, by, R * 0.97, 0, Math.PI * 2);
+      var g = ctx.createRadialGradient(
+        bx - R * 0.36, by - R * 0.4, R * 0.06,
+        bx, by, R * 1.16
+      );
+      g.addColorStop(0, m.hi);
+      g.addColorStop(0.32, m.mid);
+      g.addColorStop(0.78, m.lo);
+      g.addColorStop(1, '#0d0e10');
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.restore();
+
+      // specular glint
+      ctx.save();
+      ctx.translate(bx - R * 0.34, by - R * 0.38);
+      ctx.rotate(-0.5);
+      ctx.scale(1, 0.62);
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.24, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,.72)';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function draw(){
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if(w <= 0 || h <= 0) return;
+    ctx.clearRect(0, 0, w, h);
+
+    // desk vignette
+    var vg = ctx.createRadialGradient(w / 2, h * 0.28, Math.min(w, h) * 0.1, w / 2, h * 0.55, Math.max(w, h) * 0.78);
+    vg.addColorStop(0, 'rgba(255,238,204,.05)');
+    vg.addColorStop(1, 'rgba(0,0,0,.34)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, w, h);
+
+    layout(w, h);
+    drawBase();
+    drawShadows();
+    drawPlate();
+    drawUprights();
+    drawStrings();
+    drawBalls();
+  }
+
+  /* ---------- loop ---------- */
+  var last = 0, acc = 0;
+  var STEP = 1 / 480;
+
+  function frame(now){
+    if(!last) last = now;
+    var delta = (now - last) / 1000;
+    last = now;
+    if(delta > 0.25) delta = 0.25;
+    acc += delta;
+    var guard = 0;
+    while(acc >= STEP && guard < 2600){
+      integrate(STEP);
+      solve();
+      acc -= STEP;
+      guard++;
+    }
+    if(guard >= 2600) acc = 0;
+    contacts();
+    draw();
+    updateGauges();
+    window.requestAnimationFrame(frame);
+  }
+
+  var gaugeTick = 0;
+  function updateGauges(){
+    gaugeTick++;
+    if(gaugeTick % 6 !== 0) return;
+    els.gCol.textContent = String(collisions);
+    var e = energy();
+    if(e > peakE) peakE = e;
+    var pct = peakE > 0.0005 ? Math.round((e / peakE) * 100) : 100;
+    if(pct > 100) pct = 100;
+    if(pct < 0) pct = 0;
+    els.gEne.textContent = pct + '%';
+    els.gAng.textContent = Math.round(widest()) + ' deg';
+  }
+
+  /* ---------- sizing ---------- */
+  function resize(){
+    var dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    var w = stage.clientWidth, h = stage.clientHeight;
+    if(w <= 0 || h <= 0) return;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  /* ---------- pointer ---------- */
+  function pointAt(ev){
+    var r = canvas.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+
+  function nearestBall(p){
+    var best = -1, bestD = geo.R * 1.7;
+    for(var i = 0; i < state.n; i++){
+      var dx = p.x - ballX(i), dy = p.y - ballY(i);
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if(d < bestD){ bestD = d; best = i; }
+    }
+    return best;
+  }
+
+  function angleFrom(p, i){
+    var dx = p.x - pivotX(i);
+    var dy = p.y - geo.pivotY;
+    if(dy < 1) dy = 1;
+    var a = Math.atan2(dx, dy);
+    if(a > MAX_LIFT) a = MAX_LIFT;
+    if(a < -MAX_LIFT) a = -MAX_LIFT;
+    return a;
+  }
+
+  canvas.addEventListener('pointerdown', function(ev){
+    ensureAudio();
+    var p = pointAt(ev);
+    var i = nearestBall(p);
+    if(i < 0) return;
+    dragIndex = i;
+    dragPointer = ev.pointerId;
+    om[i] = 0;
+    dragLastTh = th[i];
+    dragLastT = ev.timeStamp;
+    dragVel = 0;
+    canvas.className = 'dragging';
+    hideHint();
+    try{ canvas.setPointerCapture(ev.pointerId); }catch(e){ /* not supported */ }
+    ev.preventDefault();
+  });
+
+  canvas.addEventListener('pointermove', function(ev){
+    if(dragIndex < 0 || ev.pointerId !== dragPointer) return;
+    var p = pointAt(ev);
+    var a = angleFrom(p, dragIndex);
+    var dt = (ev.timeStamp - dragLastT) / 1000;
+    if(dt > 0.004){
+      var v = (a - dragLastTh) / dt;
+      if(v > 9) v = 9;
+      if(v < -9) v = -9;
+      dragVel = dragVel * 0.55 + v * 0.45;
+      dragLastTh = a;
+      dragLastT = ev.timeStamp;
+    }
+    th[dragIndex] = a;
+    om[dragIndex] = 0;
+    peakE = 0;
+    ev.preventDefault();
+  });
+
+  function endDrag(ev){
+    if(dragIndex < 0) return;
+    if(ev && ev.pointerId !== dragPointer && ev.type !== 'pointercancel') return;
+    var i = dragIndex;
+    dragIndex = -1;
+    dragPointer = null;
+    om[i] = dragVel;
+    dragVel = 0;
+    canvas.className = '';
+    peakE = energy();
+    for(var k = 0; k < state.n - 1; k++) touching[k] = (Math.sin(th[k]) - Math.sin(th[k + 1])) > -2e-4;
+  }
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('lostpointercapture', endDrag);
+
+  canvas.addEventListener('keydown', function(ev){
+    var k = ev.key;
+    if(k === 'ArrowLeft'){ ensureAudio(); lift(1); ev.preventDefault(); }
+    else if(k === 'ArrowRight'){
+      ensureAudio();
+      stopAll();
+      th[state.n - 1] = MAX_LIFT;
+      touching[state.n - 2] = false;
+      peakE = energy();
+      hideHint();
+      ev.preventDefault();
+    }
+    else if(k === ' ' || k === 'Spacebar'){ stopAll(); ev.preventDefault(); }
+  });
+
+  /* ---------- controls ---------- */
+  function lossWord(v){
+    if(v <= 6) return 'None';
+    if(v <= 22) return 'Low';
+    if(v <= 48) return 'Medium';
+    if(v <= 76) return 'High';
+    return 'Heavy';
+  }
+
+  function syncUI(){
+    els.balls.textContent = String(state.n);
+    els.count.textContent = String(state.n);
+    els.grav.value = String(Math.round(state.gravity * 100));
+    els.vGrav.textContent = state.gravity.toFixed(2) + ' g';
+    els.loss.value = String(state.loss);
+    els.vLoss.textContent = lossWord(state.loss);
+    els.vMetal.textContent = METALS[state.metal].name;
+    els.vSound.textContent = state.sound ? 'On' : 'Off';
+    document.getElementById('sound').textContent = state.sound ? 'Mute' : 'Unmute';
+    var btns = document.querySelectorAll('.metal');
+    for(var i = 0; i < btns.length; i++){
+      btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-metal') === state.metal ? 'true' : 'false');
+    }
+    document.getElementById('sound').setAttribute('aria-pressed', state.sound ? 'true' : 'false');
+  }
+
+  function setBalls(n){
+    if(n < MIN_BALLS || n > MAX_BALLS) return;
+    build(n);
+    syncUI();
+    save();
+    resize();
+  }
+
+  document.getElementById('more').addEventListener('click', function(){ setBalls(state.n + 1); });
+  document.getElementById('less').addEventListener('click', function(){ setBalls(state.n - 1); });
+
+  els.grav.addEventListener('input', function(){
+    state.gravity = parseInt(els.grav.value, 10) / 100;
+    els.vGrav.textContent = state.gravity.toFixed(2) + ' g';
+    peakE = 0;
+    save();
+  });
+
+  els.loss.addEventListener('input', function(){
+    state.loss = parseInt(els.loss.value, 10);
+    els.vLoss.textContent = lossWord(state.loss);
+    save();
+  });
+
+  var metalBtns = document.querySelectorAll('.metal');
+  for(var mi = 0; mi < metalBtns.length; mi++){
+    metalBtns[mi].addEventListener('click', function(){
+      state.metal = this.getAttribute('data-metal');
+      syncUI();
+      save();
+      draw();
+    });
+  }
+
+  document.getElementById('lift1').addEventListener('click', function(){ ensureAudio(); lift(1); });
+  document.getElementById('lift2').addEventListener('click', function(){ ensureAudio(); lift(2); });
+  document.getElementById('lift3').addEventListener('click', function(){ ensureAudio(); lift(3); });
+  document.getElementById('split').addEventListener('click', function(){ ensureAudio(); bothEnds(); });
+  document.getElementById('reset').addEventListener('click', function(){ stopAll(); });
+
+  document.getElementById('sound').addEventListener('click', function(){
+    state.sound = !state.sound;
+    if(state.sound) ensureAudio();
+    syncUI();
+    save();
+  });
+
+  /* ---------- boot ---------- */
+  load();
+  build(state.n);
+  syncUI();
+  resize();
+
+  if(window.ResizeObserver){
+    var ro = new window.ResizeObserver(function(){ resize(); });
+    ro.observe(stage);
+  }
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', function(){ window.setTimeout(resize, 220); });
+
+  window.requestAnimationFrame(frame);
+  window.setTimeout(function(){ if(!moved) lift(1); }, 900);
+
+  window.__cradle = {
+    state: state,
+    get th(){ return th; },
+    get om(){ return om; },
+    lift: lift,
+    bothEnds: bothEnds,
+    stopAll: stopAll,
+    energy: energy,
+    setBalls: setBalls,
+    ballPos: function(i){ return { x: ballX(i), y: ballY(i), r: geo.R, pivotY: geo.pivotY }; },
+    step: function(seconds){
+      var steps = Math.round(seconds / STEP);
+      for(var s = 0; s < steps; s++){ integrate(STEP); solve(); }
+      contacts();
+    },
+    get collisions(){ return collisions; }
+  };
+})();
+</script>
+</body>
+</html>
